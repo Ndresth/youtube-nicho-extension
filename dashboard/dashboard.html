@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>YT Nicho Finder · Panel</title>
+  <link rel="icon" href="../icons/icon48.png">
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <img src="../icons/icon48.png" alt="" width="28" height="28">
+      <h1>YT Nicho Finder</h1>
+      <span id="pausedPill" class="pill warn" hidden>Captura en pausa</span>
+    </div>
+    <div class="actions">
+      <button id="exportCsv" title="Exporta lo que ves con los filtros actuales">CSV (filtro actual)</button>
+      <button id="backup" title="Copia de seguridad completa">Backup JSON</button>
+      <label class="button" title="Importa un backup JSON (se mezcla, no duplica)">Importar<input type="file" id="importFile" accept=".json,application/json" hidden></label>
+      <button id="clearAll" class="danger">Borrar todo</button>
+    </div>
+  </header>
+
+  <section class="stats" id="stats"></section>
+
+  <nav class="tabs">
+    <button data-tab="videos" class="active">Videos</button>
+    <button data-tab="channels">Canales</button>
+  </nav>
+
+  <section id="videosView">
+    <form class="filters" id="filters" autocomplete="off">
+      <input type="search" name="q" placeholder="Buscar título o canal…" class="grow">
+      <select name="source" title="Página donde se vio">
+        <option value="">Todas las páginas</option>
+        <option value="inicio">Inicio</option>
+        <option value="busqueda">Búsqueda</option>
+        <option value="relacionados">Relacionados</option>
+        <option value="video">Video abierto</option>
+        <option value="canal">Canal</option>
+        <option value="suscripciones">Suscripciones</option>
+        <option value="shorts">Shorts</option>
+        <option value="feed">Otros feeds</option>
+      </select>
+      <select name="type" title="Formato">
+        <option value="">Videos y Shorts</option>
+        <option value="long">Solo videos</option>
+        <option value="short">Solo Shorts</option>
+      </select>
+      <label>Vistas ≥ <input type="number" name="minViews" min="0" step="1000"></label>
+      <label>Subs ≤ <input type="number" name="maxSubs" min="0" step="1000"></label>
+      <label>Ratio ≥ <input type="number" name="minRatio" min="0" step="0.5"></label>
+      <label>x canal ≥ <input type="number" name="minChMult" min="0" step="0.5"></label>
+      <label>Edad ≤ <input type="number" name="maxAge" min="0" step="1"> días</label>
+      <label class="check"><input type="checkbox" name="onlyHot"> Destacados</label>
+      <label class="check"><input type="checkbox" name="onlyComplete"> Completos</label>
+      <label class="check"><input type="checkbox" name="onlyFav"> ⭐ Favoritos</label>
+      <label class="check"><input type="checkbox" name="showHidden"> Ver descartados</label>
+      <button type="button" id="resetFilters">Limpiar</button>
+    </form>
+    <div class="chipbar" id="channelChip" hidden></div>
+    <div class="resultbar">
+      <span id="resultCount">Cargando videos…</span>
+      <span class="pager"><button id="prev">‹</button><span id="pageInfo"></span><button id="next">›</button></span>
+    </div>
+    <div class="tablewrap">
+      <table id="videosTable">
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p id="empty" class="empty" hidden>No hay videos con estos filtros. Navega YouTube con la extensión activa y aparecerán aquí.</p>
+  </section>
+
+  <section id="channelsView" hidden>
+    <div class="filters">
+      <input type="search" id="chQ" placeholder="Buscar canal…" class="grow">
+      <label>Subs ≤ <input type="number" id="chMaxSubs" min="0" step="1000"></label>
+      <label>Videos ≥ <input type="number" id="chMinVideos" min="1" step="1" value="1"></label>
+    </div>
+    <div class="resultbar"><span id="chCount"></span></div>
+    <div class="tablewrap">
+      <table id="channelsTable">
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer class="muted">
+    <b>Ratio</b> = vistas / suscriptores. <b>x canal</b> = vistas del video / mediana de vistas de los videos guardados de ese canal (con 3+ videos). <b>Crec./día</b> = vistas ganadas por día entre tu primer y último avistamiento. Los datos se actualizan solos mientras navegas.
+  </footer>
+
+  <script src="../src/parse.js"></script>
+  <script src="../src/dom.js"></script>
+  <script src="dashboard.js"></script>
+</body>
+</html>

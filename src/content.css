@@ -11,3 +11,5 @@
 .ytn-badge.ytn-badge-hot { background: rgba(21, 128, 61, 0.95); }
 .ytn-badge.ytn-badge-hot .ytn-ratio { color: #fff; }
 .ytn-hot { outline: 3px solid #22c55e; outline-offset: 2px; border-radius: 12px; }
+.ytn-badge .ytn-ok { color: #86efac; }
+.ytn-badge.ytn-badge-hot .ytn-ok { color: #fff; }

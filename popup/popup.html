@@ -5,31 +5,48 @@
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <h1>YT Nicho Finder</h1>
+  <header>
+    <h1>YT Nicho Finder</h1>
+    <label class="switch" title="Pausar o reanudar la captura">
+      <input type="checkbox" id="active">
+      <span id="activeLabel">Capturando</span>
+    </label>
+  </header>
+
   <section class="stats">
-    <div><b id="total">0</b><span>videos guardados</span></div>
-    <div><b id="complete">0</b><span>fichas completas</span></div>
-    <div><b id="hot">0</b><span>destacados</span></div>
-    <div><b id="channels">0</b><span>canales</span></div>
+    <div><b id="total">–</b><span>videos guardados</span></div>
+    <div><b id="today">–</b><span>nuevos hoy</span></div>
+    <div><b id="complete">–</b><span>fichas completas</span></div>
+    <div><b id="hot">–</b><span>destacados</span></div>
   </section>
 
-  <form id="settings">
-    <h2>Criterio de "destacado"</h2>
-    <label>Suscriptores menos de <input type="number" id="subsMax" min="0" step="1000"></label>
-    <label>Vistas mínimas <input type="number" id="viewsMin" min="0" step="1000"></label>
-    <label>Ratio vistas/subs mínimo <input type="number" id="ratioMin" min="0" step="0.5"></label>
-    <label class="check"><input type="checkbox" id="badges"> Mostrar etiquetas sobre los videos</label>
-    <label class="check"><input type="checkbox" id="fetchSubs"> Si vidIQ no da los suscriptores en 10 s, buscarlos en la página del canal</label>
-    <p id="saved" class="muted"></p>
-  </form>
-
-  <h2>Historial</h2>
+  <button id="openDashboard" class="primary">Abrir panel de análisis</button>
   <div class="buttons">
     <button id="exportAll">CSV todo</button>
     <button id="exportHot">CSV destacados</button>
-    <button id="clear" class="danger">Borrar historial</button>
   </div>
-  <p class="muted">Se guarda sola una ficha por video (título, enlace, miniatura, canal, vistas, suscriptores de vidIQ y antigüedad) mientras navegas. Nunca se duplica: si faltaban datos se completan, y si vuelves a ver el video se actualizan sus vistas.</p>
+
+  <details>
+    <summary>Ajustes</summary>
+    <form id="settings">
+      <h2>Criterio de "destacado"</h2>
+      <label>Suscriptores menos de <input type="number" id="subsMax" min="0" step="1000"></label>
+      <label>Vistas mínimas <input type="number" id="viewsMin" min="0" step="1000"></label>
+      <label>Ratio vistas/subs mínimo <input type="number" id="ratioMin" min="0" step="0.5"></label>
+      <label>Antigüedad máxima (días, 0 = sin límite) <input type="number" id="ageMax" min="0" step="1"></label>
+      <h2>Comportamiento</h2>
+      <label class="check"><input type="checkbox" id="badges"> Mostrar etiquetas sobre los videos</label>
+      <label class="check"><input type="checkbox" id="fetchSubs"> Si vidIQ no da los suscriptores en 10 s, buscarlos en la página del canal</label>
+      <label>Separador CSV
+        <select id="csvSep">
+          <option value=",">Coma (Google Sheets, Excel en inglés)</option>
+          <option value=";">Punto y coma (Excel en español)</option>
+        </select>
+      </label>
+    </form>
+  </details>
+  <p id="saved" class="muted"></p>
+  <p class="muted">Se guarda sola una ficha por video mientras navegas: título, enlace, miniatura, canal, vistas, suscriptores (vidIQ) y antigüedad. Sin duplicados; si vuelves a ver un video se actualizan sus vistas.</p>
   <script src="../src/parse.js"></script>
   <script src="popup.js"></script>
 </body>

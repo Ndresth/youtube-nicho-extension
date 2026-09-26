@@ -1,10 +1,11 @@
 {
   "name": "youtube-nicho-extension",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
-  "description": "Extensión para Brave/Chrome que destaca videos con muchas vistas en canales pequeños de YouTube.",
+  "description": "Extensión para Chrome/Brave que guarda en segundo plano los videos de YouTube (con datos de vidIQ) y encuentra outliers: muchas vistas en canales pequeños.",
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "zip": "rm -f yt-nicho-finder.zip && zip -r yt-nicho-finder.zip manifest.json src popup icons"
+    "e2e": "node tests/e2e.js",
+    "zip": "rm -f yt-nicho-finder.zip && zip -r yt-nicho-finder.zip manifest.json background.js src popup dashboard icons"
   }
 }

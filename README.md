@@ -1,31 +1,55 @@
 # YT Nicho Finder
 
-Extensión para **Brave** (y cualquier navegador Chromium) que lee los videos de YouTube que te aparecen (inicio, búsqueda, relacionados) y destaca los que tienen **muchas vistas en canales pequeños**: la señal de que el algoritmo los está empujando.
+Extensión para **Chrome** (y Brave o cualquier navegador Chromium) que trabaja **sola, en segundo plano**, mientras navegas YouTube. Guarda cada video que te aparece, incluidos los suscriptores que pinta **vidIQ**, y te ayuda a encontrar **outliers**: videos con muchas vistas en canales pequeños.
 
 ## Qué hace
 
-Trabaja **sola, en segundo plano**: no hay que pulsar nada. Mientras navegas YouTube (inicio, búsquedas, canales, relacionados, Shorts) vigila la página todo el rato —también al hacer scroll y al pasar de una búsqueda a otra sin recargar— y guarda **una ficha por video**:
+### 1. Captura automática (no hay que pulsar nada)
+Vigila la página todo el rato: al hacer scroll, al pasar de una búsqueda a otra sin recargar, en inicio, búsquedas, relacionados, suscripciones, páginas de canal y Shorts.
 
 | Dato | De dónde sale |
 |---|---|
-| Título, enlace, miniatura | Tarjeta del video (`ytd-rich-item-renderer` / `yt-lockup-view-model`) |
-| Canal | Enlace `/@canal` de la tarjeta |
+| Título, enlace, miniatura, duración, si es Short | Tarjeta del video |
+| Canal | Enlace `/@canal` de la tarjeta (o el encabezado en páginas de canal) |
 | Vistas y "hace cuánto se publicó" | Metadatos de la tarjeta |
 | Suscriptores del canal | Lo que **vidIQ** pinta encima del video |
+| Texto crudo de vidIQ y VPH | Todo lo que vidIQ muestra, guardado tal cual |
 
-Reglas de guardado:
+Datos más precisos cuando aplica:
+- **Video abierto** (`/watch`): vistas exactas (`45.123`) y suscriptores bajo el nombre del canal.
+- **Página de un canal**: suscriptores del encabezado, válidos para todos sus videos.
 
-- **Nunca duplica.** Cada video se identifica por su enlace (id del video). Si ya existe, no se crea otra fila.
-- **Rellena huecos.** vidIQ tarda unos segundos en pintar; la extensión vuelve a leer las tarjetas cada 3 s y completa la ficha existente cuando aparecen los datos.
+### 2. Reglas de guardado
+- **Nunca duplica.** Cada video se identifica por su enlace; nunca hay dos filas del mismo video.
+- **Rellena huecos.** vidIQ tarda unos segundos en pintar; la tarjeta se vuelve a leer cada 3 s y se completa la misma ficha.
 - **Deja en paz las fichas completas** (no las vuelve a procesar, para no ralentizar YouTube).
-- **Actualiza las vistas.** Si días después vuelves a cruzarte con el video y tiene más vistas, se actualiza ese número (y su antigüedad) en la misma ficha.
-- Respaldo: si vidIQ no pinta los suscriptores en 10 s, los consulta en la página del canal (se puede desactivar en el popup).
+- **Actualiza las vistas.** Si días después vuelves a cruzarte con el video, se actualiza el número en su ficha y se guarda el historial de vistas (para medir crecimiento).
+- Respaldo opcional: si vidIQ no pinta los suscriptores en 10 s, se consultan en la página del canal.
 
-Además (opcional):
+### 3. Panel de análisis (pestaña completa)
+Popup → **Abrir panel de análisis**:
+- Tabla con miniaturas, ordenable por cualquier columna, 100 por página.
+- Filtros: texto, página de origen, videos/Shorts, vistas ≥, subs ≤, ratio ≥, x canal ≥, edad ≤, destacados, completos, favoritos.
+- Métricas de outlier:
+  - **Ratio** = vistas / suscriptores.
+  - **x canal** = vistas del video / mediana de los videos guardados de ese canal (con 3+ videos). Detecta el video que se sale de lo normal *en su propio canal*.
+  - **Vistas/día** desde la publicación y **Crec./día** entre tus avistamientos.
+  - **Fecha de publicación aproximada**.
+- ⭐ Favoritos y 🚫 descartar (ocultar sin borrar).
+- Pestaña **Canales**: videos guardados, subs, mediana y máximo de vistas, mejor ratio, destacados. Clic en un canal → sus videos.
+- **CSV** de lo filtrado, **Backup JSON** e **Importar** (mezcla sin duplicar), **Borrar todo**.
+- Se actualiza solo mientras navegas en otras pestañas.
 
-- Etiqueta sobre cada miniatura: `👁 vistas · 👥 suscriptores · xRatio · ⏱ antigüedad`, en verde los **destacados** (canal < 10.000 subs, 10.000+ vistas, ratio ≥ 3; configurable).
-- Botón flotante `📊 destacados/total` con tabla ordenable y CSV de la página.
-- Popup: contador de videos / fichas completas / destacados / canales y exportación CSV de todo lo guardado.
+### 4. En YouTube y en el ícono
+- Etiqueta sobre cada miniatura: `👁 vistas · 👥 subs · xRatio · ⏱ antigüedad · ✓` (✓ = ficha completa). En verde los **destacados**.
+- Botón flotante `📊 destacados/total` con la tabla de la página actual.
+- El ícono de la extensión muestra cuántos **videos nuevos** llevas hoy.
+
+### 5. Popup
+Interruptor **Capturando / En pausa**, contadores, CSV y ajustes:
+- Criterio de destacado: subs <, vistas ≥, ratio ≥, antigüedad máxima.
+- Etiquetas sí/no, respaldo de suscriptores sí/no.
+- **Separador CSV**: coma (Google Sheets) o punto y coma con coma decimal (Excel en español).
 
 ## Instalar en Chrome (paso a paso)
 
@@ -35,41 +59,43 @@ Además (opcional):
 4. Pulsa **Cargar descomprimida** y elige la carpeta que contiene el archivo `manifest.json`.
 5. Pulsa el ícono de puzle 🧩 de la barra y fija **YT Nicho Finder** (📌).
 6. Abre o recarga `https://www.youtube.com` con vidIQ activo y navega normal. Los datos se guardan solos.
-7. Para ver/descargar lo guardado: clic en el ícono de la extensión → **CSV todo** (se abre en Excel o Google Sheets).
+7. Para analizar: clic en el ícono → **Abrir panel de análisis**, o **CSV todo** para Excel/Google Sheets.
 
-Para actualizar: reemplaza los archivos de la carpeta, pulsa ↻ en la tarjeta de la extensión en `chrome://extensions` y recarga YouTube. Los datos guardados no se pierden.
+**Actualizar a una versión nueva:** reemplaza los archivos de la carpeta, pulsa ↻ en la tarjeta de la extensión en `chrome://extensions` y **recarga las pestañas de YouTube**. Los datos guardados se conservan: los de versiones anteriores se migran solos.
 
 En Brave es igual, usando `brave://extensions`. Si ves suscriptores en `?`, baja Shields para youtube.com.
 
-## Cómo funciona
+## Cómo funciona (técnico)
 
-- **Sin API key.** Lee el DOM de YouTube (vistas y antigüedad) y los suscriptores que vidIQ inyecta en la tarjeta (busca nodos cuyo tag/clase/id contiene `vidiq`, también dentro de shadow DOM, y textos tipo `12.3K subs`, `Subs: 12K`, `1,2 M de suscriptores`).
-- Detección continua: `MutationObserver` + re-lectura cada 3 s + evento `yt-navigate-finish` de YouTube.
-- Almacenamiento en `chrome.storage.local` (clave `history`, un objeto por id de video), hasta 20.000 videos.
-- Respaldo de suscriptores: descarga la página del canal (`/@canal?hl=en`) y extrae el contador.
-- Caché de suscriptores por canal: 3 días (`chrome.storage.local`). Máximo 2 peticiones simultáneas para no saturar a YouTube.
-- Entiende formatos en español e inglés: `1,2 M de visualizaciones`, `3,5 mil`, `15K views`, `hace 2 semanas`, `3 days ago`, etc.
-- Sin `innerHTML` (YouTube exige Trusted Types).
+- **Sin API key.** Lee el DOM de YouTube y lo que vidIQ inyecta en cada tarjeta: busca nodos cuyo tag, clase o id contiene `vidiq` (también dentro de shadow DOM) y textos como `12.3K subs`, `Subs: 12K` o `1,2 M de suscriptores`. Las cifras de vidIQ no se confunden con las vistas de YouTube.
+- Detección continua: `MutationObserver` + re-lectura cada 3 s + evento `yt-navigate-finish`. Una tarjeta que no se completa en ~1 min deja de releerse.
+- **Almacenamiento**: `chrome.storage.local`, una clave por video (`v:<id>`). Cada guardado escribe solo las fichas que cambiaron: con 50.000 videos, ~18 ms frente a ~7,5 s del formato anterior, que reescribía todo el historial. Máximo 50.000 videos: el service worker poda los más antiguos, nunca los favoritos.
+- Idiomas: español, inglés y portugués (`1,2 M de visualizaciones`, `15K views`, `hace 2 semanas`, `3 days ago`, `há 2 meses`…).
+- Sin `innerHTML` (YouTube exige Trusted Types, y así los títulos nunca se interpretan como HTML).
 
 ## Columnas del CSV
 
-`video_id, titulo, url, miniatura, canal, url_canal, vistas, suscriptores, ratio_vistas_subs, publicado, antiguedad_dias, vistas_por_dia, destacado, pagina, veces_visto, primera_vez, ultima_vez, vistas_actualizadas`
+`video_id, titulo, url, miniatura, canal, url_canal, vistas, suscriptores, fuente_suscriptores, ratio_vistas_subs, x_mediana_canal, publicado, fecha_publicacion_aprox, antiguedad_dias, vistas_por_dia, crecimiento_vistas_dia, vph_vidiq, duracion_seg, es_short, destacado, favorito, pagina, veces_visto, primera_vez, ultima_vez, vistas_actualizadas, vidiq_texto`
 
-El CSV usa coma como separador y UTF-8 con BOM. En Google Sheets: `Archivo → Importar`. En Excel en español: `Datos → Desde texto/CSV`, delimitador coma.
+`fuente_suscriptores`: `vidiq`, `pagina` (YouTube: video abierto o encabezado del canal) o `canal` (respaldo).
 
 ## Límites conocidos
 
-- YouTube cambia su HTML con frecuencia; si dejan de salir etiquetas, hay que ajustar los selectores en `src/content.js`.
-- Vistas y suscriptores vienen redondeados por YouTube (ej. `1,2 M`), no son exactos.
-- Canales con suscriptores ocultos quedan con `?` y nunca se marcan como destacados.
-- Si vidIQ cambia su formato y muestra los suscriptores sin la palabra "subs"/"subscribers", no se reconocen; en ese caso actúa el respaldo por página del canal.
-- Una ficha completa solo actualiza vistas y antigüedad; los suscriptores quedan con el primer valor leído.
+- YouTube y vidIQ cambian su HTML con frecuencia; si algo deja de leerse, hay que ajustar los selectores de `src/content.js`.
+- Vistas y suscriptores de las tarjetas vienen redondeados (`1,2 M`); en el video abierto las vistas son exactas.
+- Si vidIQ muestra los suscriptores sin la palabra "subs"/"subscribers", no se reconocen; entonces actúa el respaldo.
+- En una ficha completa solo se actualizan vistas y antigüedad; los suscriptores quedan con el primer valor leído.
+- La fecha de publicación es aproximada (YouTube dice "hace 1 año", no la fecha exacta).
 
 ## Desarrollo
 
 ```bash
-npm test      # tests de parseo (Node 18+)
+npm test      # tests unitarios de parseo y fichas (Node 18+)
+npm run e2e   # prueba real en Chromium con páginas simuladas (requiere Playwright)
 npm run zip   # genera yt-nicho-finder.zip
 ```
 
-Estructura: `manifest.json`, `src/parse.js` (parseo y CSV), `src/content.js` (escaneo, etiquetas, panel), `src/content.css`, `popup/` (ajustes e historial), `icons/`.
+Estructura:
+- `manifest.json`, `background.js` (migración, poda, contador del ícono).
+- `src/parse.js` (parseo, fichas, métricas, CSV), `src/dom.js`, `src/content.js` (captura, etiquetas, panel flotante), `src/content.css`.
+- `popup/` (ajustes y resumen), `dashboard/` (panel de análisis), `tests/`, `icons/`.

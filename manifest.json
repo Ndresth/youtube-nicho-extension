@@ -1,9 +1,10 @@
 {
   "manifest_version": 3,
   "name": "YT Nicho Finder",
-  "version": "0.2.0",
-  "description": "Destaca videos con muchas vistas en canales pequeños en YouTube y guarda los datos para analizar nichos.",
-  "permissions": ["storage", "unlimitedStorage"],
+  "version": "0.3.0",
+  "description": "Guarda en segundo plano los videos de YouTube (con los datos de vidIQ) y encuentra outliers: muchas vistas en canales pequeños.",
+  "permissions": ["storage", "unlimitedStorage", "alarms"],
+  "background": { "service_worker": "background.js" },
   "action": {
     "default_popup": "popup/popup.html",
     "default_title": "YT Nicho Finder",
@@ -13,7 +14,7 @@
   "content_scripts": [
     {
       "matches": ["https://www.youtube.com/*"],
-      "js": ["src/parse.js", "src/content.js"],
+      "js": ["src/parse.js", "src/dom.js", "src/content.js"],
       "css": ["src/content.css"],
       "run_at": "document_idle"
     }

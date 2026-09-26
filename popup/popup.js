@@ -1,65 +1,92 @@
 const Y = globalThis.YTN;
 const $ = (id) => document.getElementById(id);
-const FIELDS = ['subsMax', 'viewsMin', 'ratioMin'];
+const NUM_FIELDS = ['subsMax', 'viewsMin', 'ratioMin', 'ageMax'];
+const CHECK_FIELDS = ['badges', 'fetchSubs'];
+
+let settings = Object.assign({}, Y.DEFAULT_SETTINGS);
 
 async function load() {
   const { settings: stored } = await chrome.storage.sync.get('settings');
-  const settings = Object.assign({}, Y.DEFAULT_SETTINGS, stored || {});
-  for (const f of FIELDS) $(f).value = settings[f];
-  $('badges').checked = settings.badges;
-  $('fetchSubs').checked = settings.fetchSubs;
-  await refreshStats(settings);
+  settings = Object.assign({}, Y.DEFAULT_SETTINGS, stored || {});
+  for (const f of NUM_FIELDS) $(f).value = settings[f];
+  for (const f of CHECK_FIELDS) $(f).checked = settings[f];
+  $('csvSep').value = settings.csvSep;
+  showActive();
+  await refreshStats();
 }
 
-async function getRows(settings) {
-  const { history = {} } = await chrome.storage.local.get('history');
-  // Recalcula "destacado" con el criterio actual
-  return Object.values(history).map((r) => Object.assign({}, r, Y.computeMetrics(r, settings)));
+function showActive() {
+  $('active').checked = !settings.paused;
+  $('activeLabel').textContent = settings.paused ? 'En pausa' : 'Capturando';
+  document.body.classList.toggle('paused', !!settings.paused);
 }
 
-async function currentSettings() {
-  const s = { badges: $('badges').checked, fetchSubs: $('fetchSubs').checked };
-  for (const f of FIELDS) s[f] = Number($(f).value) || 0;
-  return s;
+async function getRows() {
+  const all = await chrome.storage.local.get(null);
+  const rows = [];
+  for (const [k, r] of Object.entries(all)) {
+    if (!k.startsWith(Y.KEY_PREFIX) || r.hidden) continue;
+    // Recalcula "destacado" con el criterio actual
+    rows.push(Object.assign({}, r, Y.computeMetrics(r, settings)));
+  }
+  return { rows, today: all.today };
 }
 
-async function refreshStats(settings) {
-  const rows = await getRows(settings);
-  $('total').textContent = rows.length;
-  $('hot').textContent = rows.filter((r) => r.hot).length;
-  $('complete').textContent = rows.filter((r) => Y.isComplete(r)).length;
-  $('channels').textContent = new Set(rows.map((r) => r.channelPath || r.channel)).size;
+const fmt = (n) => n.toLocaleString('es');
+
+// Total y "hoy" al instante (solo claves); completos/destacados cuando termine de leer todo.
+async function quickStats() {
+  if (!chrome.storage.local.getKeys) return;
+  const [keys, { today }] = await Promise.all([chrome.storage.local.getKeys(), chrome.storage.local.get('today')]);
+  $('total').textContent = fmt(keys.filter((k) => k.startsWith(Y.KEY_PREFIX)).length);
+  $('today').textContent = fmt(today && today.day === Y.todayKey() ? today.count : 0);
+}
+
+async function refreshStats() {
+  await quickStats();
+  const { rows, today } = await getRows();
+  $('total').textContent = fmt(rows.length);
+  $('today').textContent = fmt(today && today.day === Y.todayKey() ? today.count : 0);
+  $('complete').textContent = fmt(rows.filter((r) => Y.isComplete(r)).length);
+  $('hot').textContent = fmt(rows.filter((r) => r.hot).length);
+}
+
+async function save() {
+  for (const f of NUM_FIELDS) settings[f] = Number($(f).value) || 0;
+  for (const f of CHECK_FIELDS) settings[f] = $(f).checked;
+  settings.csvSep = $('csvSep').value;
+  settings.paused = !$('active').checked;
+  await chrome.storage.sync.set({ settings });
+  showActive();
+  $('saved').textContent = 'Guardado. Se aplica al instante en las pestañas de YouTube.';
+  refreshStats();
 }
 
 let saveTimer;
 $('settings').addEventListener('input', () => {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(async () => {
-    const settings = await currentSettings();
-    await chrome.storage.sync.set({ settings });
-    $('saved').textContent = 'Guardado. Se aplica al instante en las pestañas de YouTube.';
-    refreshStats(settings);
-  }, 300);
+  saveTimer = setTimeout(save, 300);
 });
+$('active').addEventListener('change', save);
 
 async function exportCSV(onlyHot) {
-  const settings = await currentSettings();
-  let rows = await getRows(settings);
+  let { rows } = await getRows();
   if (onlyHot) rows = rows.filter((r) => r.hot);
+  const stats = Y.channelStats(rows);
+  for (const r of rows) r.chMult = Y.channelMultiplier(r, stats);
   rows.sort((a, b) => (b.ratio || 0) - (a.ratio || 0));
-  const blob = new Blob([Y.toCSV(rows)], { type: 'text/csv;charset=utf-8' });
+  const blob = new Blob([Y.toCSV(rows, { sep: settings.csvSep })], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'youtube-historial' + (onlyHot ? '-destacados' : '') + '-' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.download = 'youtube-videos' + (onlyHot ? '-destacados' : '') + '-' + Y.todayKey() + '.csv';
   a.click();
 }
 
 $('exportAll').addEventListener('click', () => exportCSV(false));
 $('exportHot').addEventListener('click', () => exportCSV(true));
-$('clear').addEventListener('click', async () => {
-  if (!confirm('¿Borrar todo el historial de videos?')) return;
-  await chrome.storage.local.remove('history');
-  refreshStats(await currentSettings());
+$('openDashboard').addEventListener('click', () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/dashboard.html') });
+  window.close();
 });
 
 load();
