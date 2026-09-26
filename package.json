@@ -1,0 +1,10 @@
+{
+  "name": "youtube-nicho-extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Extensión para Brave/Chrome que destaca videos con muchas vistas en canales pequeños de YouTube.",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "zip": "rm -f yt-nicho-finder.zip && zip -r yt-nicho-finder.zip manifest.json src popup icons"
+  }
+}
