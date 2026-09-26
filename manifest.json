@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "YT Nicho Finder",
+  "version": "0.1.0",
+  "description": "Destaca videos con muchas vistas en canales pequeños en YouTube y guarda los datos para analizar nichos.",
+  "permissions": ["storage", "unlimitedStorage"],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "YT Nicho Finder",
+    "default_icon": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
+  },
+  "icons": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
+  "content_scripts": [
+    {
+      "matches": ["https://www.youtube.com/*"],
+      "js": ["src/parse.js", "src/content.js"],
+      "css": ["src/content.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+.ytn-item { position: relative !important; }
+.ytn-badge {
+  position: absolute; top: 6px; left: 6px; z-index: 50;
+  display: flex; gap: 6px; flex-wrap: wrap; max-width: calc(100% - 12px);
+  padding: 3px 7px; border-radius: 6px;
+  background: rgba(0, 0, 0, 0.78); color: #fff;
+  font: 600 12px/1.4 Roboto, Arial, sans-serif;
+  pointer-events: none;
+}
+.ytn-badge .ytn-ratio { color: #fde68a; }
+.ytn-badge.ytn-badge-hot { background: rgba(21, 128, 61, 0.95); }
+.ytn-badge.ytn-badge-hot .ytn-ratio { color: #fff; }
+.ytn-hot { outline: 3px solid #22c55e; outline-offset: 2px; border-radius: 12px; }

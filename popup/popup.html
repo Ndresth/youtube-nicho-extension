@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <h1>YT Nicho Finder</h1>
+  <section class="stats">
+    <div><b id="total">0</b><span>videos guardados</span></div>
+    <div><b id="hot">0</b><span>destacados</span></div>
+    <div><b id="channels">0</b><span>canales</span></div>
+  </section>
+
+  <form id="settings">
+    <h2>Criterio de "destacado"</h2>
+    <label>Suscriptores menos de <input type="number" id="subsMax" min="0" step="1000"></label>
+    <label>Vistas mínimas <input type="number" id="viewsMin" min="0" step="1000"></label>
+    <label>Ratio vistas/subs mínimo <input type="number" id="ratioMin" min="0" step="0.5"></label>
+    <label class="check"><input type="checkbox" id="badges"> Mostrar etiquetas sobre los videos</label>
+    <p id="saved" class="muted"></p>
+  </form>
+
+  <h2>Historial</h2>
+  <div class="buttons">
+    <button id="exportAll">CSV todo</button>
+    <button id="exportHot">CSV destacados</button>
+    <button id="clear" class="danger">Borrar historial</button>
+  </div>
+  <p class="muted">El historial guarda cada video que ves en YouTube (inicio, búsqueda, relacionados) para analizarlo después.</p>
+  <script src="../src/parse.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
