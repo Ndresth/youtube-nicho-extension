@@ -1,6 +1,6 @@
 {
   "name": "youtube-nicho-extension",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "Extensión para Chrome/Brave que guarda en segundo plano los videos de YouTube (con datos de vidIQ) y encuentra outliers: muchas vistas en canales pequeños.",
   "scripts": {
