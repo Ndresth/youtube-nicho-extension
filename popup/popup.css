@@ -1,7 +1,7 @@
 body { width: 320px; margin: 0; padding: 12px 14px; font: 13px system-ui, sans-serif; color: #111; background: #fff; }
 h1 { font-size: 16px; margin: 0 0 10px; }
 h2 { font-size: 13px; margin: 14px 0 6px; }
-.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
 .stats div { background: #f3f4f6; border-radius: 8px; padding: 6px; text-align: center; }
 .stats b { display: block; font-size: 18px; }
 .stats span { font-size: 11px; color: #555; }

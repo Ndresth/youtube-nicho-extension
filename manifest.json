@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YT Nicho Finder",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Destaca videos con muchas vistas en canales pequeños en YouTube y guarda los datos para analizar nichos.",
   "permissions": ["storage", "unlimitedStorage"],
   "action": {

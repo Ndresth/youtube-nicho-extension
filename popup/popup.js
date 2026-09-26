@@ -7,6 +7,7 @@ async function load() {
   const settings = Object.assign({}, Y.DEFAULT_SETTINGS, stored || {});
   for (const f of FIELDS) $(f).value = settings[f];
   $('badges').checked = settings.badges;
+  $('fetchSubs').checked = settings.fetchSubs;
   await refreshStats(settings);
 }
 
@@ -17,7 +18,7 @@ async function getRows(settings) {
 }
 
 async function currentSettings() {
-  const s = { badges: $('badges').checked };
+  const s = { badges: $('badges').checked, fetchSubs: $('fetchSubs').checked };
   for (const f of FIELDS) s[f] = Number($(f).value) || 0;
   return s;
 }
@@ -26,6 +27,7 @@ async function refreshStats(settings) {
   const rows = await getRows(settings);
   $('total').textContent = rows.length;
   $('hot').textContent = rows.filter((r) => r.hot).length;
+  $('complete').textContent = rows.filter((r) => Y.isComplete(r)).length;
   $('channels').textContent = new Set(rows.map((r) => r.channelPath || r.channel)).size;
 }
 

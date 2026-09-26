@@ -1,5 +1,5 @@
-// Content script: detecta videos en YouTube, obtiene suscriptores del canal y
-// destaca los que tienen muchas vistas en canales pequeños.
+// Content script: vigila YouTube en segundo plano, lee cada video (con los
+// suscriptores que pinta vidIQ) y guarda una ficha por video, sin duplicados.
 (function () {
   'use strict';
   const Y = globalThis.YTN;
@@ -15,12 +15,15 @@
   const CHANNEL_TTL_MS = 3 * 24 * 3600 * 1000;
   const HISTORY_MAX = 20000;
   const FETCH_CONCURRENCY = 2;
+  const RESCAN_MS = 3000; // re-lectura periódica: vidIQ pinta con retraso
+  const FALLBACK_DELAY_MS = 10000; // espera a vidIQ antes de consultar el canal
+  const TITLE_SEL = '#video-title, a.yt-lockup-metadata-view-model__title, h3';
 
   let settings = Object.assign({}, Y.DEFAULT_SETTINGS);
   const pageVideos = new Map(); // videoId -> registro de la página actual
   const channelCache = new Map(); // channelPath -> {subs, subsText, name, t}
   const pendingChannel = new Map(); // key -> Promise
-  const dirty = new Map(); // videoId -> cambios pendientes de guardar en el historial
+  const dirty = new Map(); // videoId -> {fields, seenInc} pendientes de guardar
 
   // ---------- Almacenamiento ----------
   function storageGet(area, keys) {
@@ -56,6 +59,8 @@
       renderPanel();
     });
     setInterval(flushStorage, 5000);
+    setInterval(scheduleScan, RESCAN_MS);
+    window.addEventListener('pagehide', flushStorage);
     scheduleScan();
   }
 
@@ -65,11 +70,10 @@
     if (dirty.size) {
       // Se mezcla con lo guardado para no pisar lo que escriban otras pestañas
       const { history = {} } = await storageGet('local', ['history']);
+      const now = Date.now();
       for (const [id, d] of dirty) {
-        const h = history[id] || { firstSeen: d.lastSeen, seenCount: 0 };
-        h.seenCount += d.seenInc;
-        Object.assign(h, d.fields, { lastSeen: d.lastSeen });
-        history[id] = h;
+        const r = Y.mergeRecord(history[id], d.fields, now, d.seenInc);
+        history[id] = Object.assign(r, Y.computeMetrics(r, settings));
       }
       dirty.clear();
       const ids = Object.keys(history);
@@ -117,20 +121,56 @@
     renderPanelCount();
   }
 
-  function videoIdFrom(el) {
-    const a = el.querySelector('a[href*="/watch?v="]');
+  // Id del video y si es un Short, a partir del enlace de la tarjeta.
+  function videoRefFrom(el) {
+    const a = el.querySelector('a[href*="/watch?v="], a[href^="/shorts/"]');
     if (!a) return null;
-    const m = a.getAttribute('href').match(/[?&]v=([\w-]{11})/);
-    return m ? m[1] : null;
+    const href = a.getAttribute('href');
+    let m = href.match(/[?&]v=([\w-]{11})/);
+    if (m) return { id: m[1], isShort: false };
+    m = href.match(/\/shorts\/([\w-]{11})/);
+    return m ? { id: m[1], isShort: true } : null;
+  }
+
+  function isVidiqNode(n) {
+    if (n.tagName.toLowerCase().includes('vidiq')) return true;
+    const c = n.getAttribute('class') || '';
+    return /vidiq/i.test(c) || /vidiq/i.test(n.id || '');
+  }
+
+  // Busca el texto de suscriptores dentro de la tarjeta, incluido lo que vidIQ
+  // inyecta (también dentro de shadow DOM abiertos). Prioriza nodos de vidIQ.
+  function findSubs(el) {
+    const out = { vidiq: null, generic: null };
+    (function walk(node, inVidiq) {
+      for (const c of node.children) {
+        if (c.classList.contains('ytn-badge') || c.matches(TITLE_SEL)) continue;
+        const v = inVidiq || isVidiqNode(c);
+        if (c.childElementCount <= 3) {
+          const t = textOf(c);
+          if (t && t.length <= 80 && Y.isSubsText(t)) {
+            const n = Y.parseSubs(t);
+            if (n != null) {
+              if (v && out.vidiq == null) out.vidiq = n;
+              else if (out.generic == null) out.generic = n;
+            }
+          }
+        }
+        if (c.shadowRoot) walk(c.shadowRoot, v);
+        walk(c, v);
+      }
+    })(el, false);
+    return out.vidiq != null ? out.vidiq : out.generic;
   }
 
   function textOf(node) {
     return node ? node.textContent.replace(/\s+/g, ' ').trim() : '';
   }
 
-  function extractItem(el, videoId) {
+  function extractItem(el, ref) {
+    const videoId = ref.id;
     const titleEl = el.querySelector(
-      '#video-title, a.yt-lockup-metadata-view-model__title, h3 a, h3'
+      '#video-title, a.yt-lockup-metadata-view-model__title, h3 a, h3, .shortsLockupViewModelHostOutsideMetadataTitle'
     );
     const title = (titleEl && (titleEl.getAttribute('title') || textOf(titleEl))) || '';
 
@@ -180,6 +220,9 @@
 
     return {
       videoId,
+      url: Y.videoUrl(videoId, ref.isShort),
+      thumbnail: Y.thumbnailUrl(videoId),
+      subs: findSubs(el),
       title,
       channel,
       channelPath,
@@ -190,29 +233,56 @@
     };
   }
 
+  const UPDATABLE = ['title', 'channel', 'channelPath', 'viewsText', 'views', 'ageText', 'ageDays'];
+
   function processItem(el) {
-    const videoId = videoIdFrom(el);
-    if (!videoId) return;
-    const known = pageVideos.get(videoId);
-    if (el.dataset.ytnId === videoId && el.querySelector('.ytn-badge') && known && known.views != null) return;
+    const ref = videoRefFrom(el);
+    if (!ref) return;
+    const videoId = ref.id;
+    let v = pageVideos.get(videoId);
+    // Ficha completa y ya pintada en este mismo elemento: no se toca más.
+    if (v && v.complete && el.dataset.ytnId === videoId && (!settings.badges || el.querySelector(':scope > .ytn-badge'))) return;
     el.dataset.ytnId = videoId;
 
-    const data = extractItem(el, videoId);
-    let v = pageVideos.get(videoId);
-    if (!v) {
-      v = Object.assign({ subs: null, subsText: null, subsDone: false, source: pageSource() }, data);
+    const data = extractItem(el, ref);
+    let changed = false;
+    const isNew = !v;
+    if (isNew) {
+      v = Object.assign({ subsDone: false, source: pageSource() }, data, {
+        subsSource: data.subs != null ? 'vidiq' : null,
+      });
       pageVideos.set(videoId, v);
-      touchHistory(v, true);
+      changed = true;
     } else {
-      // Actualiza campos que pudieron no estar listos en el primer render
-      for (const k of ['title', 'channel', 'channelPath', 'viewsText', 'views', 'ageText', 'ageDays']) {
-        if (data[k] != null && data[k] !== '') v[k] = data[k];
+      // Rellena lo que no estaba listo en la lectura anterior
+      for (const k of UPDATABLE) {
+        if (data[k] != null && data[k] !== '' && data[k] !== v[k]) {
+          v[k] = data[k];
+          changed = true;
+        }
+      }
+      // vidIQ manda sobre el respaldo de la página del canal
+      if (data.subs != null && (v.subs == null || v.subsSource !== 'vidiq')) {
+        v.subs = data.subs;
+        v.subsSource = 'vidiq';
+        v.subsDone = true;
+        changed = true;
       }
     }
     v.el = el;
+    v.complete = Y.isComplete(v);
     applyMetrics(v);
     renderBadge(v);
-    resolveSubs(v);
+    if (changed) touchHistory(v, isNew);
+    if (v.subs == null) scheduleFallback(v);
+  }
+
+  // Si vidIQ no pinta los suscriptores en un rato, se consultan en la página del canal.
+  function scheduleFallback(v) {
+    if (!settings.fetchSubs || v.fallbackTimer || v.subsDone) return;
+    v.fallbackTimer = setTimeout(() => {
+      if (v.subs == null && pageVideos.get(v.videoId) === v) resolveSubs(v);
+    }, FALLBACK_DELAY_MS);
   }
 
   function applyMetrics(v) {
@@ -222,8 +292,7 @@
   function touchHistory(v, newSighting) {
     const d = dirty.get(v.videoId) || { seenInc: 0, fields: {} };
     if (newSighting) d.seenInc += 1;
-    d.lastSeen = Date.now();
-    for (const k of ['videoId', 'title', 'channel', 'channelPath', 'views', 'subs', 'ageDays', 'ratio', 'viewsPerDay', 'hot', 'source']) {
+    for (const k of Y.RECORD_FIELDS) {
       if (v[k] != null && v[k] !== '') d.fields[k] = v[k];
     }
     dirty.set(v.videoId, d);
@@ -242,9 +311,12 @@
         if (info && info.path) v.channelPath = info.path;
       }
       if (!info) return;
+      if (v.subs != null) return; // vidIQ llegó mientras tanto
       v.subs = info.subs;
+      v.subsSource = info.subs != null ? 'canal' : null;
       v.subsDone = true;
       v.subsText = info.subsText;
+      v.complete = Y.isComplete(v);
       if (!v.channel && info.name) v.channel = info.name;
       applyMetrics(v);
       touchHistory(v, false);

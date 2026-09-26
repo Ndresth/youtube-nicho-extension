@@ -65,3 +65,45 @@ test('computeMetrics y CSV', () => {
   assert.ok(csv.includes('"Hola, ""mundo"""'));
   assert.ok(csv.includes('https://www.youtube.com/watch?v=abcdefghijk'));
 });
+
+test('parseSubs (textos de vidIQ)', () => {
+  assert.strictEqual(Y.parseSubs('12.3K subs'), 12300);
+  assert.strictEqual(Y.parseSubs('Subs: 12.3K'), 12300);
+  assert.strictEqual(Y.parseSubs('Videos 45 · 3.4K subscribers'), 3400);
+  assert.strictEqual(Y.parseSubs('1,2 M de suscriptores'), 1200000);
+  assert.strictEqual(Y.parseSubs('Subscribers 950'), 950);
+  assert.strictEqual(Y.parseSubs('Subtítulos 5'), null);
+  assert.ok(!Y.isSubsText('3 days ago'));
+});
+
+test('mergeRecord: sin duplicados, rellena huecos, actualiza vistas', () => {
+  const id = 'abcdefghijk';
+  const base = { videoId: id, url: Y.videoUrl(id), thumbnail: Y.thumbnailUrl(id), title: 'T', channel: 'C', views: 1000, ageText: 'hace 2 días', ageDays: 2 };
+  // 1) Primera vez, sin subs (vidIQ aún no pintó): ficha incompleta
+  let r = Y.mergeRecord(undefined, base, 1, 1);
+  assert.strictEqual(r.complete, false);
+  assert.strictEqual(r.seenCount, 1);
+  // 2) Llegan los subs: se rellena la misma ficha
+  r = Y.mergeRecord(r, Object.assign({}, base, { subs: 500 }), 2, 0);
+  assert.strictEqual(r.subs, 500);
+  assert.strictEqual(r.complete, true);
+  assert.strictEqual(r.firstSeen, 1);
+  // 3) Completa: título/subs distintos no la tocan
+  r = Y.mergeRecord(r, Object.assign({}, base, { title: 'Otro', subs: 900 }), 3, 1);
+  assert.strictEqual(r.title, 'T');
+  assert.strictEqual(r.subs, 500);
+  assert.strictEqual(r.seenCount, 2);
+  // 4) Días después con más vistas: solo se actualiza el número (y su antigüedad)
+  r = Y.mergeRecord(r, Object.assign({}, base, { views: 50000, ageText: 'hace 1 semana', ageDays: 7 }), 4, 1);
+  assert.strictEqual(r.views, 50000);
+  assert.strictEqual(r.ageDays, 7);
+  assert.strictEqual(r.viewsUpdatedAt, 4);
+  assert.strictEqual(r.title, 'T');
+});
+
+test('CSV incluye miniatura y enlace de Shorts', () => {
+  const csv = Y.toCSV([{ videoId: 'abcdefghijk', url: Y.videoUrl('abcdefghijk', true) }]);
+  assert.ok(csv.includes('miniatura'));
+  assert.ok(csv.includes('https://www.youtube.com/shorts/abcdefghijk'));
+  assert.ok(csv.includes('https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg'));
+});

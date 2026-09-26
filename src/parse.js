@@ -63,6 +63,24 @@
     return /(\bago\b|\bhace\b)/i.test(t);
   }
 
+  // Textos de suscriptores (los que pinta vidIQ sobre cada video).
+  const SUBS_WORD = '(?:subs\\b|subscri\\w*|suscri\\w*|abonn\\w*|inscrit\\w*)';
+  const NUM = '(\\d[\\d.,]*(?:\\s?(?:k|m|b|mil|mill\\.?|mm)\\b)?)';
+  const SUBS_AFTER = new RegExp(NUM + '\\s*(?:de\\s+)?' + SUBS_WORD, 'i'); // "12.3K subs"
+  const SUBS_BEFORE = new RegExp(SUBS_WORD + '\\s*:?\\s*' + NUM, 'i'); // "Subs: 12.3K"
+
+  function isSubsText(t) {
+    return !!t && /\d/.test(t) && new RegExp(SUBS_WORD, 'i').test(t);
+  }
+
+  // "12.3K subs" / "Subscribers: 1,2 M" / "Videos 45 · 3.4K subscribers" -> número
+  function parseSubs(text) {
+    if (!text) return null;
+    const t = String(text).replace(/[\u00a0\u202f]/g, ' ');
+    const m = t.match(SUBS_AFTER) || t.match(SUBS_BEFORE);
+    return m ? parseCount(m[1]) : null;
+  }
+
   // Busca el texto de suscriptores dentro del HTML de una página de canal o video.
   function extractSubsText(html) {
     const patterns = [
@@ -131,15 +149,59 @@
     return { ratio, viewsPerDay, hot };
   }
 
+  // ---------- Fichas de video (una por video, sin duplicados) ----------
+  function videoUrl(id, isShort) {
+    return 'https://www.youtube.com/' + (isShort ? 'shorts/' : 'watch?v=') + id;
+  }
+  function thumbnailUrl(id) {
+    return 'https://i.ytimg.com/vi/' + id + '/hqdefault.jpg';
+  }
+
+  // Campos que se guardan de cada video.
+  const RECORD_FIELDS = ['videoId', 'url', 'title', 'thumbnail', 'channel', 'channelPath', 'views', 'subs', 'subsSource', 'ageText', 'ageDays', 'source'];
+  // Una ficha está completa cuando tiene todo lo que pidió el usuario.
+  const REQUIRED_FIELDS = ['url', 'title', 'thumbnail', 'channel', 'views', 'subs', 'ageText'];
+  const empty = (x) => x == null || x === '';
+
+  function isComplete(r) {
+    return !!r && REQUIRED_FIELDS.every((k) => !empty(r[k]));
+  }
+
+  // Mezcla lo recién leído (inc) con la ficha guardada (old):
+  // - no existe: se crea.
+  // - incompleta: se rellenan los huecos, nunca se crea otra.
+  // - completa: se deja en paz, salvo el número de vistas si cambió.
+  function mergeRecord(old, inc, now, seenInc) {
+    const out = old ? Object.assign({}, old) : { firstSeen: now, seenCount: 0 };
+    if (!isComplete(old)) {
+      for (const k of RECORD_FIELDS) if (empty(out[k]) && !empty(inc[k])) out[k] = inc[k];
+    }
+    if (inc.views != null && inc.views !== out.views) {
+      out.views = inc.views;
+      // La antigüedad va con la lectura de vistas (para vistas/día)
+      if (!empty(inc.ageText)) {
+        out.ageText = inc.ageText;
+        out.ageDays = inc.ageDays;
+      }
+      out.viewsUpdatedAt = now;
+    }
+    out.seenCount = (out.seenCount || 0) + (seenInc || 0);
+    out.lastSeen = now;
+    out.complete = isComplete(out);
+    return out;
+  }
+
   const CSV_COLUMNS = [
     ['videoId', 'video_id'],
     ['title', 'titulo'],
     ['url', 'url'],
+    ['thumbnail', 'miniatura'],
     ['channel', 'canal'],
     ['channelUrl', 'url_canal'],
     ['views', 'vistas'],
     ['subs', 'suscriptores'],
     ['ratio', 'ratio_vistas_subs'],
+    ['ageText', 'publicado'],
     ['ageDays', 'antiguedad_dias'],
     ['viewsPerDay', 'vistas_por_dia'],
     ['hot', 'destacado'],
@@ -147,6 +209,7 @@
     ['seenCount', 'veces_visto'],
     ['firstSeen', 'primera_vez'],
     ['lastSeen', 'ultima_vez'],
+    ['viewsUpdatedAt', 'vistas_actualizadas'],
   ];
 
   function toCSV(rows) {
@@ -160,10 +223,12 @@
     const lines = [CSV_COLUMNS.map((c) => c[1]).join(',')];
     for (const r of rows) {
       const row = Object.assign({}, r, {
-        url: 'https://www.youtube.com/watch?v=' + r.videoId,
+        url: r.url || videoUrl(r.videoId),
+        thumbnail: r.thumbnail || thumbnailUrl(r.videoId),
         channelUrl: r.channelPath ? 'https://www.youtube.com' + r.channelPath : '',
         firstSeen: r.firstSeen ? new Date(r.firstSeen).toISOString() : '',
         lastSeen: r.lastSeen ? new Date(r.lastSeen).toISOString() : '',
+        viewsUpdatedAt: r.viewsUpdatedAt ? new Date(r.viewsUpdatedAt).toISOString() : '',
       });
       lines.push(CSV_COLUMNS.map((c) => esc(row[c[0]])).join(','));
     }
@@ -171,13 +236,20 @@
     return '﻿' + lines.join('\r\n');
   }
 
-  const DEFAULT_SETTINGS = { subsMax: 10000, viewsMin: 10000, ratioMin: 3, badges: true };
+  const DEFAULT_SETTINGS = { subsMax: 10000, viewsMin: 10000, ratioMin: 3, badges: true, fetchSubs: true };
 
   const api = {
     parseCount,
     parseAgeDays,
     isViewsText,
     isAgeText,
+    isSubsText,
+    parseSubs,
+    videoUrl,
+    thumbnailUrl,
+    RECORD_FIELDS,
+    isComplete,
+    mergeRecord,
     extractSubsText,
     extractOwnerPath,
     extractChannelName,
