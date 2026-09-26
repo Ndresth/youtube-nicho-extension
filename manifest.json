@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "YT Nicho Finder",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Guarda en segundo plano los videos de YouTube (con los datos de vidIQ) y encuentra outliers: muchas vistas en canales pequeños.",
-  "permissions": ["storage", "unlimitedStorage", "alarms"],
+  "permissions": ["storage", "unlimitedStorage", "alarms", "activeTab"],
   "background": { "service_worker": "background.js" },
   "action": {
     "default_popup": "popup/popup.html",

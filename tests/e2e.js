@@ -30,6 +30,9 @@ const PAGES = {
   home1: `<div id="grid">
     ${card({ id: 'aaaaaaaaaaa', title: 'Video uno', views: '15 K visualizaciones', age: 'hace 3 días', dur: '12:34' })}
     ${card({ id: 'ccccccccccc', title: 'Short tres', views: '2,1 M de visualizaciones', age: 'hace 5 días', short: true })}
+    <ytd-rich-item-renderer><div id="content"><ytd-ad-slot-renderer><yt-lockup-view-model><div class="ytLockupViewModelHost">
+      <feed-ad-metadata-view-model><span>Anuncio de Hostinger</span><ad-badge-view-model><badge-shape><div>Patrocinado</div></badge-shape></ad-badge-view-model></feed-ad-metadata-view-model>
+      <a href="/watch?v=H9kT9Su_enQ">Mirar</a></div></yt-lockup-view-model></ytd-ad-slot-renderer></div></ytd-rich-item-renderer>
   </div>
   ${later(1500, addVidiq(0, 'div', 'vidiq-video-stats', '33K views · 1,2 K subs · 850 VPH'))}
   ${later(1500, addVidiq(1, 'vidiq-thumb-stats', '', 'Subs: 900'))}
@@ -96,7 +99,22 @@ const PAGES = {
   assert.strictEqual(b.subs, 99);
   assert.strictEqual(b.subsSource, 'canal');
   assert.match(await p.textContent('ytd-rich-item-renderer .ytn-badge'), /1\.2K/);
-  console.log('ok inicio (vidIQ tardío, Short, respaldo canal)');
+  assert.ok(!(await p.textContent('ytd-rich-item-renderer .ytn-badge')).includes('null'));
+  assert.strictEqual(await rec('H9kT9Su_enQ'), undefined); // anuncio ignorado
+  assert.strictEqual(await p.locator('ytd-ad-slot-renderer .ytn-badge').count(), 0);
+  // Diagnóstico que copia el botón del popup
+  const diag = await ext.evaluate(async () => {
+    // sin permiso "tabs" no se ven las URLs: se pregunta a todas y responde la de YouTube
+    for (const tab of await chrome.tabs.query({})) {
+      const r = await chrome.tabs.sendMessage(tab.id, { type: 'diagnose' }).catch(() => null);
+      if (r) return r;
+    }
+  });
+  assert.ok(diag.ok, diag.text);
+  assert.match(diag.text, /Textos con "subs\/suscriptores" en la página: 2/);
+  assert.match(diag.text, /vidiq-thumb-stats/);
+  assert.match(diag.text, /Tarjetas de video: 3/);
+  console.log('ok inicio (vidIQ tardío, Short, respaldo canal, anuncio ignorado, diagnóstico)');
 
   // 3) Revisita: mismas fichas, vistas actualizadas, sin duplicar
   current = 'home2';

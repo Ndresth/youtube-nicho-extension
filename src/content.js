@@ -15,7 +15,14 @@
     'ytm-shorts-lockup-view-model',
   ].join(',');
   const CHANNEL_LINK = 'a[href^="/@"], a[href^="/channel/"], a[href^="/c/"], a[href^="/user/"]';
-  const TITLE_SEL = '#video-title, a.yt-lockup-metadata-view-model__title, h3, .shortsLockupViewModelHostOutsideMetadataTitle';
+  // YouTube usa clases viejas (kebab-case) y nuevas (camelCase): se aceptan ambas.
+  const TITLE_SEL =
+    '#video-title, a.yt-lockup-metadata-view-model__title, a[class*="LockupMetadataViewModelTitle"], h3, .shortsLockupViewModelHostOutsideMetadataTitle';
+  const META_ROW_SEL =
+    '.yt-content-metadata-view-model__metadata-row span, [class*="ContentMetadataViewModelMetadataRow"] span, ytd-channel-name #text';
+  // Anuncios: se ignoran (traen enlace /watch pero no son videos del feed)
+  const AD_SEL =
+    'ytd-ad-slot-renderer, ytd-in-feed-ad-layout-renderer, ytd-promoted-video-renderer, ytd-display-ad-renderer, feed-ad-metadata-view-model, ad-badge-view-model';
   const CHANNEL_TTL_MS = 3 * 24 * 3600 * 1000;
   const FETCH_CONCURRENCY = 2;
   const RESCAN_MS = 3000; // re-lectura periódica: vidIQ pinta con retraso
@@ -168,6 +175,11 @@
     for (const el of nodes) {
       // Evita procesar dos veces un lockup anidado dentro de un rich-item
       if (el.parentElement && el.parentElement.closest(ITEM_SELECTOR)) continue;
+      if (el.matches(AD_SEL) || el.querySelector(AD_SEL)) {
+        const b = el.querySelector(':scope > .ytn-badge');
+        if (b) b.remove();
+        continue;
+      }
       processItem(el);
     }
     if (location.pathname === '/watch') processWatch();
@@ -301,7 +313,7 @@
     }
     if (!channel) {
       // En el diseño nuevo el nombre del canal es el primer texto del bloque de metadatos
-      const row = el.querySelector('.yt-content-metadata-view-model__metadata-row span, ytd-channel-name #text');
+      const row = el.querySelector(META_ROW_SEL);
       const t = textOf(row);
       if (t && !Y.isViewsText(t) && !Y.isAgeText(t)) channel = t;
     }
@@ -581,7 +593,7 @@
       h('span', { title: 'Suscriptores del canal (' + (v.subsSource || 'pendiente') + ')' }, '👥 ' + subs),
       h('span', { title: 'Vistas / suscriptores', class: 'ytn-ratio' }, ratio),
       h('span', { title: 'Antigüedad' }, '⏱ ' + Y.formatAge(v.ageDays)),
-      v.complete ? h('span', { title: 'Ficha completa guardada', class: 'ytn-ok' }, '✓') : null
+      ...(v.complete ? [h('span', { title: 'Ficha completa guardada', class: 'ytn-ok' }, '✓')] : [])
     );
     el.classList.toggle('ytn-hot', !!v.hot);
     badge.classList.toggle('ytn-badge-hot', !!v.hot);
@@ -767,6 +779,88 @@
       a { color: #93c5fd; }
     }
   `;
+
+  // ---------- Diagnóstico (botón del popup) ----------
+  // Resume dónde aparecen textos de suscriptores y nodos de otras extensiones en la
+  // página, para ajustar la lectura cuando YouTube o vidIQ cambian su HTML.
+  function deepAll(root, out) {
+    for (const e of root.querySelectorAll('*')) {
+      out.push(e);
+      if (e.shadowRoot) deepAll(e.shadowRoot, out);
+    }
+    return out;
+  }
+  function describe(e) {
+    const c = (e.getAttribute('class') || '').trim().split(/\s+/).filter(Boolean).slice(0, 3);
+    return e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + (c.length ? '.' + c.join('.') : '');
+  }
+  function ancestry(e) {
+    const parts = [];
+    let n = e;
+    for (let i = 0; i < 10 && n && n.tagName; i++) {
+      parts.push(describe(n));
+      const root = n.getRootNode();
+      n = n.parentElement || (root && root.host) || null;
+    }
+    return parts.join(' < ');
+  }
+  function clip(html, max) {
+    return html.replace(/(href|src)="[^"]{100,}"/g, '$1="…"').replace(/<svg[\s\S]*?<\/svg>/g, '<svg/>').slice(0, max);
+  }
+  const YT_TAG = /^(ytd-|yt-|ytm-|tp-yt-|iron-|paper-|dom-|lottie-|ytw|ytc|ytp|ytcp|badge-shape|button-view-model|avatar-|thumbnail-|lockup-|video-|feed-|ad-|shorts-|reel-|icon-|toggle-|chip-|img-|like-|dislike-|segmented-|sheet-|dialog-|menu-|animated-|collection-|horizontal-|flexible-|content-|attributed-)/;
+
+  function diagnose() {
+    const all = deepAll(document, []);
+    const out = [];
+    out.push('YT Nicho Finder ' + chrome.runtime.getManifest().version + ' · ' + location.href + ' · ' + new Date().toISOString());
+    out.push('Tarjetas en memoria: ' + pageVideos.size + ' · con subs: ' + [...pageVideos.values()].filter((v) => v.subs != null).length +
+      ' · por fuente: ' + JSON.stringify([...pageVideos.values()].reduce((a, v) => ((a[v.subsSource || 'ninguna'] = (a[v.subsSource || 'ninguna'] || 0) + 1), a), {})));
+
+    const subsHits = all.filter((e) => {
+      if (e.closest('.ytn-badge') || e.closest('#ytn-panel-host') || e.childElementCount > 2) return false;
+      const t = textOf(e);
+      return t.length <= 80 && Y.isSubsText(t);
+    });
+    out.push('\n## Textos con "subs/suscriptores" en la página: ' + subsHits.length);
+    for (const e of subsHits.slice(0, 12)) out.push('- "' + textOf(e) + '"\n  ' + ancestry(e) + '\n  ' + clip(e.outerHTML, 600));
+
+    const attrHits = all.filter((e) => [...e.attributes].some((a) => /vidiq/i.test(a.name + ' ' + a.value)));
+    out.push('\n## Nodos con "vidiq" en algún atributo: ' + attrHits.length);
+    for (const e of attrHits.slice(0, 8)) out.push('- ' + ancestry(e) + '\n  ' + clip(e.outerHTML, 1500));
+
+    const tags = {};
+    for (const e of all) {
+      const t = e.tagName.toLowerCase();
+      if (t.includes('-') && !YT_TAG.test(t)) tags[t] = (tags[t] || 0) + 1;
+    }
+    out.push('\n## Etiquetas no de YouTube (posibles extensiones): ' + JSON.stringify(tags));
+    const shadowHosts = all.filter((e) => e.shadowRoot && !YT_TAG.test(e.tagName.toLowerCase()));
+    out.push('Shadow DOM no de YouTube: ' + shadowHosts.map(describe).slice(0, 15).join(', '));
+    const frames = [...document.querySelectorAll('iframe')].map((f) => f.src).filter((s) => s && !/youtube\.com|google/.test(s));
+    out.push('Iframes externos: ' + frames.slice(0, 10).join(', '));
+
+    const cards = [...document.querySelectorAll(ITEM_SELECTOR)].filter(
+      (el) => !(el.parentElement && el.parentElement.closest(ITEM_SELECTOR)) && !el.matches(AD_SEL) && !el.querySelector(AD_SEL) && videoRefFrom(el)
+    );
+    out.push('\n## Tarjetas de video: ' + cards.length + ' (se muestran 2)');
+    for (const el of cards.slice(0, 2)) {
+      const ref = videoRefFrom(el);
+      const d = extractItem(el, ref);
+      out.push('### ' + ref.id + ' · leído: ' + JSON.stringify({ title: d.title, channel: d.channel, channelPath: d.channelPath, viewsText: d.viewsText, ageText: d.ageText, subs: d.subs, vidiqText: d.vidiqText }));
+      out.push(clip(el.outerHTML, 12000));
+    }
+    return out.join('\n');
+  }
+
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg && msg.type === 'diagnose') {
+      try {
+        sendResponse({ ok: true, text: diagnose() });
+      } catch (e) {
+        sendResponse({ ok: false, text: String(e && e.stack) });
+      }
+    }
+  });
 
   init();
 })();

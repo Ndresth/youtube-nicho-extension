@@ -84,6 +84,21 @@ async function exportCSV(onlyHot) {
 
 $('exportAll').addEventListener('click', () => exportCSV(false));
 $('exportHot').addEventListener('click', () => exportCSV(true));
+// Pide al content script un informe de la página (para ajustar la lectura de vidIQ)
+$('diagnose').addEventListener('click', async () => {
+  const msg = $('saved');
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || (tab.url && !/^https:\/\/www\.youtube\.com\//.test(tab.url))) throw new Error('Abre esta ventana sobre una pestaña de YouTube.');
+    const res = await chrome.tabs.sendMessage(tab.id, { type: 'diagnose' });
+    if (!res) throw new Error('Recarga la pestaña de YouTube y vuelve a intentarlo.');
+    await navigator.clipboard.writeText(res.text);
+    msg.textContent = 'Diagnóstico copiado (' + res.text.length.toLocaleString('es') + ' caracteres). Pégalo en el chat con Ctrl+V.';
+  } catch (e) {
+    msg.textContent = /Receiving end|Could not establish/.test(e.message) ? 'Recarga la pestaña de YouTube y vuelve a intentarlo.' : e.message;
+  }
+});
+
 $('openDashboard').addEventListener('click', () => {
   chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/dashboard.html') });
   window.close();
